@@ -1,136 +1,85 @@
 import express from "express";
 import multer from "multer";
-import fs from "fs";
+import { v2 as cloudinary } from "cloudinary";
+import axios from "axios";
+import * as dotenv from "dotenv";
 import File from "../models/File.js";
 import { authShield } from "../middleware/authShield.js";
 
+dotenv.config();
 const router = express.Router();
 
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const dir = "./uploads";
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir);
-    cb(null, dir);
-  },
-  filename: (req, file, cb) => {
-    cb(null, `${Date.now()}-${file.originalname}`);
-  },
-});
-const upload = multer({ storage });
-
-router.post(
-  "/upload",
-  authShield,
-  upload.array("files", 10),
-  async (req, res) => {
-    try {
-      if (!req.files || req.files.length === 0) {
-        return res
-          .status(400)
-          .json({ message: "Missing binary stream resource payloads." });
-      }
-
-      const host = req.get("host");
-      const protocol = req.protocol;
-      const domainBaseUrl = `${protocol}://${host}`;
-
-      const savePromises = req.files.map(async (file) => {
-        let fileType = "document";
-        const ext = file.originalname.split(".").pop().toLowerCase();
-        if (["jpg", "jpeg", "png", "gif", "webp"].includes(ext))
-          fileType = "photos";
-        if (["mp4", "mov", "avi"].includes(ext)) fileType = "videos";
-
-        const newFile = new File({
-          name: file.originalname,
-          user: req.userId,
-          fileUrl: `${domainBaseUrl}/uploads/${file.filename}`,
-          fileType,
-          extension: `.${ext}`,
-          size: file.size,
-        });
-
-        return await newFile.save();
-      });
-
-      const savedFiles = await Promise.all(savePromises);
-
-      res.status(201).json(savedFiles);
-    } catch (err) {
-      res.status(500).json({ message: err.message });
-    }
-  },
-);
-
-router.post("/snippet", authShield, async (req, res) => {
-  try {
-    const { name, content } = req.body;
-    const safeContent = content || "";
-
-    const newFile = new File({
-      name: name || "New Workspace Block",
-      user: req.userId,
-      fileUrl: Buffer.from(safeContent).toString("base64"),
-      fileType: "code",
-      extension: ".txt",
-      size: Buffer.byteLength(safeContent),
-    });
-
-    await newFile.save();
-    res.status(201).json(newFile);
-  } catch (err) {
-    res
-      .status(500)
-      .json({ message: "Database save rejected", error: err.message });
-  }
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-router.put("/snippet/:id", authShield, async (req, res) => {
-  try {
-    const { name, content } = req.body;
-    const safeContent = content || "";
-
-    const updatedFile = await File.findOneAndUpdate(
-      { _id: req.params.id, user: req.userId },
-      {
-        name: name || "Untitled Block",
-        fileUrl: Buffer.from(safeContent).toString("base64"),
-        size: Buffer.byteLength(safeContent),
-      },
-      { returnDocument: "after" },
-    );
-
-    if (!updatedFile)
-      return res.status(404).json({ message: "Target profile missing." });
-    res.status(200).json(updatedFile);
-  } catch (err) {
-    res.status(500).json({ message: "Auto-save failed", error: err.message });
-  }
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 },
 });
 
-router.get("/download/:id", async (req, res) => {
+router.get("/download/:id", authShield, async (req, res) => {
   try {
-    let userId = req.userId;
-
-    if (!userId && req.query.token) {
-    }
-
-    const file = await File.findOne({ _id: req.params.id });
-
+    const file = await File.findOne({ _id: req.params.id, user: req.userId });
     if (!file)
       return res.status(404).json({ message: "File profile missing." });
 
-    const filename = file.fileUrl.split("/uploads/")[1];
-    const filePath = `./uploads/${filename}`;
+    const response = await axios({
+      url: file.fileUrl,
+      method: "GET",
+      responseType: "stream",
+    });
 
-    if (!fs.existsSync(filePath)) {
-      return res
-        .status(404)
-        .json({ message: "Physical file missing on server disk." });
+    res.setHeader("Content-Disposition", `attachment; filename="${file.name}"`);
+    res.setHeader("Access-Control-Expose-Headers", "Content-Disposition");
+    response.data.pipe(res);
+  } catch (err) {
+    console.error("❌ Cloudinary stream pipe crash:", err.message);
+    res
+      .status(500)
+      .json({ message: "Failed to pull file stream from cloud core." });
+  }
+});
+
+router.post("/upload", authShield, upload.array("files"), async (req, res) => {
+  try {
+    if (!req.files?.length) {
+      return res.status(400).json({ message: "No payload buffers submitted." });
     }
 
-    res.download(filePath, file.name);
+    const uploadPromises = req.files.map((file) => {
+      return new Promise((resolve, reject) => {
+        const stream = cloudinary.uploader.upload_stream(
+          { resource_type: "auto", folder: "mvault_vault_storage" },
+          async (error, result) => {
+            if (error) return reject(error);
+
+            let calculatedType = "document";
+            if (file.mimetype.startsWith("image/")) calculatedType = "photos";
+            if (file.mimetype.startsWith("video/")) calculatedType = "videos";
+
+            const newFile = new File({
+              name: file.originalname,
+              fileUrl: result.secure_url,
+              fileType: calculatedType,
+              size: file.size,
+              user: req.userId,
+            });
+
+            await newFile.save();
+            resolve(newFile);
+          },
+        );
+        stream.end(file.buffer);
+      });
+    });
+
+    const savedFiles = await Promise.all(uploadPromises);
+    res.status(201).json(savedFiles);
   } catch (err) {
+    console.error("❌ Cloudinary upload route failure:", err.message);
     res.status(500).json({ message: err.message });
   }
 });
@@ -146,37 +95,28 @@ router.get("/", authShield, async (req, res) => {
 
 router.delete("/:id", authShield, async (req, res) => {
   try {
-    const targetFile = await File.findOne({
-      _id: req.params.id,
-      user: req.userId,
-    });
+    const file = await File.findOne({ _id: req.params.id, user: req.userId });
+    if (!file)
+      return res
+        .status(404)
+        .json({ message: "Asset node not found or unauthorized." });
 
-    if (!targetFile) {
-      return res.status(404).json({ message: "Asset profile not found." });
-    }
-
-    if (
-      targetFile.fileType !== "code" &&
-      targetFile.fileUrl.includes("/uploads/")
-    ) {
-      const filename = targetFile.fileUrl.split("/uploads/")[1];
-      const filePath = `./uploads/${filename}`;
-
-      if (fs.existsSync(filePath)) {
-        fs.unlinkSync(filePath);
-        console.log(`🗑️ Successfully deleted physical disk asset: ${filePath}`);
+    try {
+      const matches = file.fileUrl.match(/\/upload\/(?:v\d+\/)?([^\.]+)/);
+      if (matches) {
+        await cloudinary.uploader.destroy(matches[1]);
       }
+    } catch (cloudErr) {
+      console.error("⚠️ Cloudinary asset bypass:", cloudErr.message);
     }
 
     await File.deleteOne({ _id: req.params.id, user: req.userId });
     res
       .status(200)
-      .json({ message: "Asset completely purged from storage and database." });
+      .json({ message: "Asset purged completely from cloud and database." });
   } catch (err) {
-    res.status(500).json({
-      message: "Error executing asset purge loop",
-      error: err.message,
-    });
+    console.error("❌ Complete asset deletion process failed:", err.message);
+    res.status(500).json({ message: err.message });
   }
 });
 
