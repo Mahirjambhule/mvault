@@ -33,19 +33,21 @@ export default function FilesSection() {
   };
 
   const handleFileChange = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
+    const selectedFiles = Array.from(e.target.files);
+    if (selectedFiles.length === 0) return;
     setUploading(true);
 
     const formData = new FormData();
-    formData.append("file", file);
+    selectedFiles.forEach((file) => {
+      formData.append("files", file);
+    });
 
     try {
       const res = await API.post("/files/upload", formData, {
         headers: { "Content-Type": "multipart/form-data" },
       });
 
-      setFiles([res.data, ...files]);
+      setFiles((prevFiles) => [...res.data, ...prevFiles]);
       setUploading(false);
     } catch (err) {
       console.error(
@@ -94,15 +96,16 @@ export default function FilesSection() {
         <input
           type="file"
           ref={fileInputRef}
-          onChange={handleFileChange}
+          id="file-upload"
           className="hidden"
+          multiple
+          onChange={handleFileChange}
         />
         <button
-          onClick={() => fileInputRef.current.click()}
-          disabled={uploading}
-          className="flex items-center gap-2 px-4.5 py-3 bg-text-bright text-bg-base text-xs font-bold rounded-xl cursor-pointer disabled:opacity-40 shrink-0"
+          onClick={() => fileInputRef.current?.click()}
+          className="px-5 py-3 bg-accent-primary text-bg-base text-xs font-semibold rounded-xl hover:bg-opacity-90 transition-all cursor-pointer"
         >
-          <Upload className="w-7 h-4" /> {uploading ? "Uploading..." : "Upload"}
+          {uploading ? "Uploading..." : "+ Upload Files"}
         </button>
       </div>
 

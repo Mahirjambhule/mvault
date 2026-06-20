@@ -18,35 +18,49 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage });
 
-router.post("/upload", authShield, upload.single("file"), async (req, res) => {
-  try {
-    if (!req.file) {
-      return res
-        .status(400)
-        .json({ message: "Missing binary stream resource payload." });
+router.post(
+  "/upload",
+  authShield,
+  upload.array("files", 10),
+  async (req, res) => {
+    try {
+      if (!req.files || req.files.length === 0) {
+        return res
+          .status(400)
+          .json({ message: "Missing binary stream resource payloads." });
+      }
+
+      const host = req.get("host");
+      const protocol = req.protocol;
+      const domainBaseUrl = `${protocol}://${host}`;
+
+      const savePromises = req.files.map(async (file) => {
+        let fileType = "document";
+        const ext = file.originalname.split(".").pop().toLowerCase();
+        if (["jpg", "jpeg", "png", "gif", "webp"].includes(ext))
+          fileType = "photos";
+        if (["mp4", "mov", "avi"].includes(ext)) fileType = "videos";
+
+        const newFile = new File({
+          name: file.originalname,
+          user: req.userId,
+          fileUrl: `${domainBaseUrl}/uploads/${file.filename}`,
+          fileType,
+          extension: `.${ext}`,
+          size: file.size,
+        });
+
+        return await newFile.save();
+      });
+
+      const savedFiles = await Promise.all(savePromises);
+
+      res.status(201).json(savedFiles);
+    } catch (err) {
+      res.status(500).json({ message: err.message });
     }
-
-    let fileType = "document";
-    const ext = req.file.originalname.split(".").pop().toLowerCase();
-    if (["jpg", "jpeg", "png", "gif", "webp"].includes(ext))
-      fileType = "photos";
-    if (["mp4", "mov", "avi"].includes(ext)) fileType = "videos";
-
-    const newFile = new File({
-      name: req.file.originalname,
-      user: req.userId,
-      fileUrl: `http://localhost:5000/uploads/${req.file.filename}`,
-      fileType,
-      extension: `.${ext}`,
-      size: req.file.size,
-    });
-
-    await newFile.save();
-    res.status(201).json(newFile);
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-});
+  },
+);
 
 router.post("/snippet", authShield, async (req, res) => {
   try {
