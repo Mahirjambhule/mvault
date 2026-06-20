@@ -132,16 +132,20 @@ export default function TextWorkspace() {
   const handleDelete = async (id, e) => {
     e.stopPropagation();
     try {
-      await API.delete(`/files/notes/${id}`);
+      await API.delete(`/notes/${id}`);
+
       setBlocks(blocks.filter((b) => b._id !== id));
       if (activeBlock?._id === id) {
         const url = new URL(window.location.href);
         url.searchParams.delete("note");
-        window.history.pushState({}, "", url);
+        window.history.replaceState({}, "", url);
         setActiveBlock(null);
       }
     } catch (err) {
-      console.error(err);
+      console.error(
+        "❌ TEXT BLOCK DELETE ERROR:",
+        err.response?.data || err.message,
+      );
     }
   };
 

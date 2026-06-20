@@ -19,10 +19,10 @@ app.use(
       "http://localhost:5173",
       "http://localhost:3000",
     ],
+    credentials: true,
     exposedHeaders: ["Content-Disposition"],
   }),
 );
-
 app.use(
   "/uploads",
   express.static("uploads", {

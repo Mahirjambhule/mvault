@@ -112,18 +112,19 @@ export default function FilesSection() {
       document.body.removeChild(link);
       window.URL.revokeObjectURL(blobUrl);
     } catch (err) {
-      if (err.response && err.response.data instanceof Blob) {
-        const reader = new FileReader();
-        reader.onload = () => {
-          const errorJson = JSON.parse(reader.result);
-          console.error("❌ BACKEND DIAGNOSTIC ERROR:", errorJson);
-        };
-        reader.readAsText(err.response.data);
-      } else {
-        console.error(
-          "❌ SYSTEM DOWNLOAD ERROR:",
-          err.response?.data || err.message,
-        );
+      console.error(
+        "❌ Production blob download failed, trying direct stream fallback...",
+        err,
+      );
+
+      try {
+        const token = localStorage.getItem("mvault_token");
+        const baseUrl = API.defaults.baseURL || "http://localhost:5000/api";
+
+        const fallbackUrl = `${baseUrl}/files/download/${fileId}?token=${token}`;
+        window.open(fallbackUrl, "_self");
+      } catch (fallbackErr) {
+        alert("Unable to process download stream on production server.");
       }
     }
   };

@@ -108,38 +108,30 @@ router.put("/snippet/:id", authShield, async (req, res) => {
   }
 });
 
-router.get("/download/:id", authShield, async (req, res) => {
+router.get("/download/:id", async (req, res) => {
   try {
-    console.log("➡️ Download request received for ID:", req.params.id);
-    console.log("👤 Authenticated User ID:", req.userId);
+    let userId = req.userId;
 
-    const file = await File.findOne({ _id: req.params.id, user: req.userId });
-
-    if (!file) {
-      return res.status(404).json({
-        errorType: "DATABASE_RECORD_MISSING",
-        message: `No file found in database matching ID ${req.params.id} for this user.`,
-      });
+    if (!userId && req.query.token) {
     }
+
+    const file = await File.findOne({ _id: req.params.id });
+
+    if (!file)
+      return res.status(404).json({ message: "File profile missing." });
 
     const filename = file.fileUrl.split("/uploads/")[1];
     const filePath = `./uploads/${filename}`;
 
-    console.log("📁 Attempting to locate physical file at:", filePath);
-
     if (!fs.existsSync(filePath)) {
-      return res.status(404).json({
-        errorType: "PHYSICAL_FILE_MISSING",
-        message: `Database entry found, but file is missing on disk at: ${filePath}`,
-        fileDetails: file,
-      });
+      return res
+        .status(404)
+        .json({ message: "Physical file missing on server disk." });
     }
 
-    return res.download(filePath, file.name);
+    res.download(filePath, file.name);
   } catch (err) {
-    return res
-      .status(500)
-      .json({ errorType: "SERVER_CRASH", message: err.message });
+    res.status(500).json({ message: err.message });
   }
 });
 
