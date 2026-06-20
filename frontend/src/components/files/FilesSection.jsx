@@ -23,6 +23,27 @@ export default function FilesSection() {
     loadVaultFiles();
   }, []);
 
+  useEffect(() => {
+    const syncPreviewFromURL = () => {
+      const params = new URLSearchParams(window.location.search);
+      const fileIdFromUrl = params.get("preview");
+
+      if (fileIdFromUrl && files.length > 0) {
+        const foundFile = files.find((f) => f._id === fileIdFromUrl);
+        if (foundFile) {
+          setPreviewFile(foundFile);
+          return;
+        }
+      }
+      setPreviewFile(null);
+    };
+
+    syncPreviewFromURL();
+
+    window.addEventListener("popstate", syncPreviewFromURL);
+    return () => window.removeEventListener("popstate", syncPreviewFromURL);
+  }, [files]);
+
   const loadVaultFiles = async () => {
     try {
       const res = await API.get("/files");
@@ -63,27 +84,75 @@ export default function FilesSection() {
     try {
       await API.delete(`/files/${id}`);
       setFiles(files.filter((f) => f._id !== id));
-      if (previewFile?._id === id) setPreviewFile(null);
+      if (previewFile?._id === id) {
+        const url = new URL(window.location.href);
+        url.searchParams.delete("preview");
+        window.history.replaceState({}, "", url);
+        setPreviewFile(null);
+      }
     } catch (err) {
       console.error(err);
     }
   };
 
-  const downloadToSystem = async (url, name, e) => {
-    if (e) e.stopPropagation();
+  const handleDownload = async (e, fileId, fileName) => {
+    e.stopPropagation();
+
     try {
-      const response = await fetch(url);
-      const blob = await response.blob();
-      const blobUrl = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = blobUrl;
-      a.download = name;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
+      const response = await API.get(`/files/download/${fileId}`, {
+        responseType: "blob",
+      });
+
+      const blobUrl = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement("a");
+      link.href = blobUrl;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
       window.URL.revokeObjectURL(blobUrl);
     } catch (err) {
-      console.error(err);
+      if (err.response && err.response.data instanceof Blob) {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const errorJson = JSON.parse(reader.result);
+          console.error("❌ BACKEND DIAGNOSTIC ERROR:", errorJson);
+        };
+        reader.readAsText(err.response.data);
+      } else {
+        console.error(
+          "❌ SYSTEM DOWNLOAD ERROR:",
+          err.response?.data || err.message,
+        );
+      }
+    }
+  };
+
+  const handleOpenPreview = (file) => {
+    const url = new URL(window.location.href);
+    const isAlreadyOpen = url.searchParams.get("preview") === file._id;
+
+    url.searchParams.set("preview", file._id);
+
+    if (isAlreadyOpen) {
+      window.history.replaceState({}, "", url);
+    } else {
+      window.history.pushState({}, "", url);
+    }
+
+    setPreviewFile(file);
+    setZoomLevel(1);
+  };
+
+  const handleClosePreview = () => {
+    const url = new URL(window.location.href);
+
+    if (url.searchParams.has("preview")) {
+      window.history.back();
+    } else {
+      url.searchParams.delete("preview");
+      window.history.replaceState({}, "", url);
+      setPreviewFile(null);
     }
   };
 
@@ -109,14 +178,11 @@ export default function FilesSection() {
         </button>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
         {files.map((f) => (
           <div
             key={f._id}
-            onClick={() => {
-              setPreviewFile(f);
-              setZoomLevel(1);
-            }}
+            onClick={() => handleOpenPreview(f)} // ⚡ FIXED
             className="p-6 bg-bg-card/40 border border-white/[0.03] rounded-2xl flex items-center justify-between group hover:bg-bg-card transition-all duration-300 min-h-[95px] cursor-pointer hover:border-accent-primary/20"
           >
             <div className="flex items-center gap-4 min-w-0">
@@ -141,12 +207,6 @@ export default function FilesSection() {
 
             <div className="flex items-center gap-1.5 opacity-100 md:opacity-0 group-hover:opacity-100 transition-all">
               <button
-                onClick={(e) => downloadToSystem(f.fileUrl, f.name, e)}
-                className="p-2 text-text-muted hover:text-accent-mint rounded-lg hover:bg-white/5 cursor-pointer"
-              >
-                <Download className="w-4 h-4" />
-              </button>
-              <button
                 onClick={(e) => handleDelete(f._id, e)}
                 className="p-2 text-text-muted hover:text-red-400 rounded-lg cursor-pointer"
               >
@@ -166,14 +226,14 @@ export default function FilesSection() {
             <div className="flex items-center gap-3">
               <button
                 onClick={(e) =>
-                  downloadToSystem(previewFile.fileUrl, previewFile.name, e)
+                  handleDownload(e, previewFile._id, previewFile.name)
                 }
                 className="p-2.5 bg-white/5 text-white rounded-xl text-xs flex items-center gap-1.5 hover:bg-white/10 cursor-pointer"
               >
                 <Download className="w-3.5 h-3.5" /> Save
               </button>
               <button
-                onClick={() => setPreviewFile(null)}
+                onClick={handleClosePreview}
                 className="p-2.5 bg-white/5 text-text-muted hover:text-white rounded-xl cursor-pointer"
               >
                 <X className="w-4 h-4" />

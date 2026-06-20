@@ -9,7 +9,19 @@ import AuthGateway from "./components/auth/AuthGateway";
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [checkingAuth, setCheckingAuth] = useState(true);
-  const [currentTab, setCurrentTab] = useState("workspace");
+
+  const [currentTab, setCurrentTab] = useState(() => {
+    const hasCheckedIn = sessionStorage.getItem("mvault_session_active");
+    const params = new URLSearchParams(window.location.search);
+    const tabFromUrl = params.get("tab");
+
+    if (!hasCheckedIn) {
+      sessionStorage.setItem("mvault_session_active", "true");
+      return "workspace";
+    }
+
+    return tabFromUrl || "workspace";
+  });
 
   useEffect(() => {
     const token = localStorage.getItem("mvault_token");
@@ -17,8 +29,54 @@ export default function App() {
     setCheckingAuth(false);
   }, []);
 
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    const syncTabFromURL = () => {
+      const params = new URLSearchParams(window.location.search);
+      const tabFromUrl = params.get("tab") || "workspace";
+      setCurrentTab(tabFromUrl);
+    };
+
+    const params = new URLSearchParams(window.location.search);
+    if (!params.has("tab") && currentTab === "workspace") {
+      urlSync("workspace", true);
+    }
+
+    window.addEventListener("popstate", syncTabFromURL);
+    return () => window.removeEventListener("popstate", syncPreviewFromURL);
+  }, [isAuthenticated]);
+
+  const urlSync = (tabId, replace = false) => {
+    const url = new URL(window.location.href);
+
+    url.searchParams.delete("preview");
+    url.searchParams.delete("note");
+
+    url.searchParams.set("tab", tabId);
+
+    if (replace) {
+      window.history.replaceState({}, "", url);
+    } else {
+      window.history.pushState({}, "", url);
+    }
+  };
+
+  // 🚀 TAB TOGGLE ENGINE
+  const handleTabChange = (tabId) => {
+    if (currentTab === tabId) return;
+    setCurrentTab(tabId);
+    urlSync(tabId, false);
+  };
+
   const handleLogout = () => {
     localStorage.removeItem("mvault_token");
+    sessionStorage.removeItem("mvault_session_active");
+
+    const url = new URL(window.location.origin);
+    window.history.replaceState({}, "", url);
+
+    setCurrentTab("workspace");
     setIsAuthenticated(false);
   };
 
@@ -64,7 +122,7 @@ export default function App() {
               return (
                 <button
                   key={tab.id}
-                  onClick={() => setCurrentTab(tab.id)}
+                  onClick={() => handleTabChange(tab.id)}
                   className="w-full flex items-center gap-4 px-4 py-3.5 rounded-xl text-sm font-medium tracking-wide transition-all relative z-10 cursor-pointer"
                   style={{
                     color: isActive
@@ -152,7 +210,7 @@ export default function App() {
           return (
             <button
               key={tab.id}
-              onClick={() => setCurrentTab(tab.id)}
+              onClick={() => handleTabChange(tab.id)}
               className="flex flex-col items-center justify-center gap-1 py-1 px-3 relative cursor-pointer"
               style={{
                 color: isActive

@@ -23,6 +23,30 @@ export default function TextWorkspace() {
     loadWorkspaceBlocks();
   }, []);
 
+  useEffect(() => {
+    const syncActiveBlockFromURL = () => {
+      const params = new URLSearchParams(window.location.search);
+      const noteIdFromUrl = params.get("note");
+
+      if (noteIdFromUrl && blocks.length > 0) {
+        const foundBlock = blocks.find((b) => b._id === noteIdFromUrl);
+        if (foundBlock) {
+          setActiveBlock(foundBlock);
+          setTitle(foundBlock.title);
+          setContent(foundBlock.content);
+          setSyncStatus("Synced");
+          return;
+        }
+      }
+      setActiveBlock(null);
+    };
+
+    syncActiveBlockFromURL();
+
+    window.addEventListener("popstate", syncActiveBlockFromURL);
+    return () => window.removeEventListener("popstate", syncActiveBlockFromURL);
+  }, [blocks]);
+
   const loadWorkspaceBlocks = async () => {
     try {
       const res = await API.get("/notes");
@@ -39,7 +63,7 @@ export default function TextWorkspace() {
     try {
       const res = await API.post("/notes");
       setBlocks([res.data, ...blocks]);
-      openBlock(res.data);
+      handleOpenBlock(res.data);
     } catch (err) {
       console.error(
         "❌ FRONTEND CREATION ERROR:",
@@ -48,11 +72,34 @@ export default function TextWorkspace() {
     }
   };
 
-  const openBlock = (block) => {
+  const handleOpenBlock = (block) => {
+    const url = new URL(window.location.href);
+    const isAlreadyOpen = url.searchParams.get("note") === block._id;
+
+    url.searchParams.set("note", block._id);
+
+    if (isAlreadyOpen) {
+      window.history.replaceState({}, "", url);
+    } else {
+      window.history.pushState({}, "", url);
+    }
+
     setActiveBlock(block);
     setTitle(block.title);
     setContent(block.content);
     setSyncStatus("Synced");
+  };
+
+  const handleCloseBlock = () => {
+    const url = new URL(window.location.href);
+
+    if (url.searchParams.has("note")) {
+      window.history.back();
+    } else {
+      url.searchParams.delete("note");
+      window.history.replaceState({}, "", url);
+      setActiveBlock(null);
+    }
   };
 
   const triggerAutoSave = (updatedTitle, updatedContent) => {
@@ -85,9 +132,14 @@ export default function TextWorkspace() {
   const handleDelete = async (id, e) => {
     e.stopPropagation();
     try {
-      await API.delete(`/notes/${id}`);
+      await API.delete(`/files/notes/${id}`);
       setBlocks(blocks.filter((b) => b._id !== id));
-      if (activeBlock?._id === id) setActiveBlock(null);
+      if (activeBlock?._id === id) {
+        const url = new URL(window.location.href);
+        url.searchParams.delete("note");
+        window.history.pushState({}, "", url);
+        setActiveBlock(null);
+      }
     } catch (err) {
       console.error(err);
     }
@@ -116,11 +168,11 @@ export default function TextWorkspace() {
       </div>
 
       {/* Grid Display */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {blocks.map((b) => (
           <div
             key={b._id}
-            onClick={() => openBlock(b)}
+            onClick={() => handleOpenBlock(b)}
             className="p-6 bg-bg-card/40 border border-white/[0.03] rounded-2xl flex items-center justify-between group hover:bg-bg-card transition-all duration-300 min-h-[90px] cursor-pointer hover:border-accent-primary/20"
           >
             <div className="flex items-center gap-4 min-w-0">
@@ -188,7 +240,7 @@ export default function TextWorkspace() {
                 </button>
                 <X
                   className="w-6 h-6 text-text-muted hover:text-white cursor-pointer transition-transform hover:scale-105"
-                  onClick={() => setActiveBlock(null)}
+                  onClick={handleCloseBlock}
                 />
               </div>
             </div>

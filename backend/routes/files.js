@@ -108,6 +108,41 @@ router.put("/snippet/:id", authShield, async (req, res) => {
   }
 });
 
+router.get("/download/:id", authShield, async (req, res) => {
+  try {
+    console.log("➡️ Download request received for ID:", req.params.id);
+    console.log("👤 Authenticated User ID:", req.userId);
+
+    const file = await File.findOne({ _id: req.params.id, user: req.userId });
+
+    if (!file) {
+      return res.status(404).json({
+        errorType: "DATABASE_RECORD_MISSING",
+        message: `No file found in database matching ID ${req.params.id} for this user.`,
+      });
+    }
+
+    const filename = file.fileUrl.split("/uploads/")[1];
+    const filePath = `./uploads/${filename}`;
+
+    console.log("📁 Attempting to locate physical file at:", filePath);
+
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({
+        errorType: "PHYSICAL_FILE_MISSING",
+        message: `Database entry found, but file is missing on disk at: ${filePath}`,
+        fileDetails: file,
+      });
+    }
+
+    return res.download(filePath, file.name);
+  } catch (err) {
+    return res
+      .status(500)
+      .json({ errorType: "SERVER_CRASH", message: err.message });
+  }
+});
+
 router.get("/", authShield, async (req, res) => {
   try {
     const files = await File.find({ user: req.userId }).sort({ updatedAt: -1 });
