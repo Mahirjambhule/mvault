@@ -1,0 +1,9 @@
+# Local Environment Constants
+.env
+
+# Physical Local File Storage Modules
+uploads/
+
+# Core Dependencies Cache 
+node_modules/
+npm-debug.log
