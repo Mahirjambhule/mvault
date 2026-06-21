@@ -91,7 +91,6 @@ export default function App() {
           <Terminal className="w-5 h-5 animate-spin duration-1000" />
           <span>// Establishing Secure Quantum Link...</span>
         </div>
-        {/* Sleek Minimal Grid Skeleton Layout */}
         <div className="w-64 space-y-3 opacity-20">
           <div className="h-3 bg-white/20 rounded-full w-3/4 animate-pulse" />
           <div className="h-3 bg-white/20 rounded-full w-full animate-pulse delay-75" />
