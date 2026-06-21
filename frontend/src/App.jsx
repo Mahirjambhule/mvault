@@ -62,7 +62,6 @@ export default function App() {
     }
   };
 
-  // 🚀 TAB TOGGLE ENGINE
   const handleTabChange = (tabId) => {
     if (currentTab === tabId) return;
     setCurrentTab(tabId);
@@ -87,8 +86,17 @@ export default function App() {
 
   if (checkingAuth) {
     return (
-      <div className="h-screen w-screen bg-bg-base flex items-center justify-center font-mono text-sm text-text-muted">
-        <span>// Loading Secured Workspace...</span>
+      <div className="h-screen w-screen bg-bg-base flex flex-col items-center justify-center font-mono space-y-4">
+        <div className="flex items-center gap-2 text-accent-primary animate-pulse text-sm">
+          <Terminal className="w-5 h-5 animate-spin duration-1000" />
+          <span>// Establishing Secure Quantum Link...</span>
+        </div>
+        {/* Sleek Minimal Grid Skeleton Layout */}
+        <div className="w-64 space-y-3 opacity-20">
+          <div className="h-3 bg-white/20 rounded-full w-3/4 animate-pulse" />
+          <div className="h-3 bg-white/20 rounded-full w-full animate-pulse delay-75" />
+          <div className="h-3 bg-white/20 rounded-full w-5/6 animate-pulse delay-150" />
+        </div>
       </div>
     );
   }
