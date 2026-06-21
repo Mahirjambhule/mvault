@@ -11,6 +11,10 @@ import noteRoutes from "./routes/notes.js";
 
 const app = express();
 
+app.get("/api/health", (req, res) => {
+  res.status(200).send("🚀 Container Keep-Alive Active");
+});
+
 app.use(express.json());
 
 app.use(
