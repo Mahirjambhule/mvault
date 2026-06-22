@@ -22,7 +22,6 @@ export default function TextWorkspace() {
   const [copiedId, setCopiedId] = useState(null);
   const [isPreviewMode, setIsPreviewMode] = useState(false);
 
-  // 🚀 ZOOM SCROLL-LIGHTBOX STATES
   const [maximizedImgUrl, setMaximizedImgUrl] = useState(null);
   const [zoomScale, setZoomScale] = useState(1);
 
@@ -41,9 +40,11 @@ export default function TextWorkspace() {
       if (noteIdFromUrl && blocks.length > 0) {
         const foundBlock = blocks.find((b) => b._id === noteIdFromUrl);
         if (foundBlock) {
-          setActiveBlock(foundBlock);
-          setTitle(foundBlock.title);
-          setContent(foundBlock.content);
+          if (!activeBlock || activeBlock._id !== foundBlock._id) {
+            setActiveBlock(foundBlock);
+            setTitle(foundBlock.title);
+            setContent(foundBlock.content);
+          }
           setSyncStatus("Synced");
           return;
         }
@@ -55,7 +56,7 @@ export default function TextWorkspace() {
 
     window.addEventListener("popstate", syncActiveBlockFromURL);
     return () => window.removeEventListener("popstate", syncActiveBlockFromURL);
-  }, [blocks]);
+  }, [blocks, activeBlock]); // 🚀 Add activeBlock to dependencies so tracking stays accurate
 
   const loadWorkspaceBlocks = async () => {
     try {
@@ -115,10 +116,13 @@ export default function TextWorkspace() {
           title: updatedTitle,
           content: updatedContent,
         });
+
         setBlocks((prev) => {
           const remainingBlocks = prev.filter((b) => b._id !== activeBlock._id);
           return [res.data, ...remainingBlocks];
         });
+
+        setActiveBlock(res.data);
         setSyncStatus("Synced");
       } catch (err) {
         setSyncStatus("Error");
