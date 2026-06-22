@@ -204,13 +204,12 @@ export default function FilesSection() {
           onClick={() => {
             if (previewFile.fileType === "photos") handleClosePreview();
           }}
-          className="fixed inset-0 bg-black/95 backdrop-blur-md z-50 flex flex-col items-center justify-center p-4 animate-fadeIn"
+          className="fixed inset-0 bg-black/95 backdrop-blur-md z-50 flex flex-col p-4 animate-fadeIn"
         >
           <div className="absolute top-4 inset-x-4 flex justify-between items-center z-50 pointer-events-none">
             <span className="text-xs font-mono text-text-muted bg-bg-card/70 px-3 py-1.5 border border-white/5 rounded-xl truncate max-w-[40%] pointer-events-auto">
               {previewFile.name}
             </span>
-
             <div className="flex items-center gap-3 pointer-events-auto">
               <button
                 onClick={(e) =>
@@ -230,10 +229,8 @@ export default function FilesSection() {
           </div>
 
           <div
-            className={`w-full max-w-7xl h-[78vh] flex items-center justify-center rounded-3xl relative p-2 ${
-              zoomScale > 1
-                ? "overflow-auto custom-scrollbar"
-                : "overflow-hidden"
+            className={`w-full max-w-7xl h-[85vh] mx-auto mt-16 relative p-2 overflow-auto custom-scrollbar flex justify-center ${
+              zoomScale > 1 ? "items-start" : "items-center"
             }`}
             onClick={(e) => e.stopPropagation()}
           >
@@ -248,9 +245,14 @@ export default function FilesSection() {
                     Math.max(1, Math.min(prev + factor, 4)),
                   );
                 }}
-                className="max-w-full max-h-[72vh] object-contain rounded-xl shadow-2xl select-none transition-transform duration-150 ease-out origin-center shrink-0"
+                className={`rounded-xl shadow-2xl select-none transition-all duration-150 ease-out shrink-0 ${
+                  zoomScale > 1 ? "my-16" : "my-0"
+                }`}
                 style={{
-                  transform: `scale(${zoomScale})`,
+                  width: zoomScale > 1 ? `${zoomScale * 50}%` : "auto",
+                  maxWidth: zoomScale > 1 ? "none" : "100%",
+                  maxHeight: zoomScale > 1 ? "none" : "72vh",
+                  objectFit: "contain",
                   cursor: zoomScale > 1 ? "zoom-out" : "zoom-in",
                 }}
                 onClick={() => {
@@ -261,21 +263,14 @@ export default function FilesSection() {
             )}
 
             {previewFile.fileType === "videos" && (
-              <video
-                src={previewFile.fileUrl}
-                controls
-                autoPlay
-                className="max-w-full max-h-[72vh] rounded-xl shadow-2xl"
-              />
-            )}
-
-            {(previewFile.fileType === "document" ||
-              isPdfFile(previewFile)) && (
-              <iframe
-                src={`https://docs.google.com/viewer?url=${encodeURIComponent(previewFile.fileUrl)}&embedded=true`}
-                title={previewFile.name}
-                className="w-[92vw] md:w-[80vw] h-[74vh] bg-[#1E222B] rounded-2xl shadow-2xl border border-white/5 relative z-10"
-              />
+              <div className="w-full h-full flex items-center justify-center">
+                <video
+                  src={previewFile.fileUrl}
+                  controls
+                  autoPlay
+                  className="max-w-full max-h-[72vh] rounded-xl shadow-2xl"
+                />
+              </div>
             )}
           </div>
         </div>

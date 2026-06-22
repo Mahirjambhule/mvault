@@ -358,7 +358,7 @@ export default function TextWorkspace() {
             setMaximizedImgUrl(null);
             setZoomScale(1);
           }}
-          className="fixed inset-0 bg-black/95 backdrop-blur-2xl z-[60] flex items-center justify-center p-4 md:p-12 animate-fadeIn"
+          className="fixed inset-0 bg-black/95 backdrop-blur-2xl z-[60] flex flex-col p-4 md:p-12 animate-fadeIn"
         >
           <button
             onClick={() => {
@@ -371,10 +371,8 @@ export default function TextWorkspace() {
           </button>
 
           <div
-            className={`w-full h-full flex items-center justify-center rounded-2xl relative p-4 transition-all ${
-              zoomScale > 1
-                ? "overflow-auto custom-scrollbar"
-                : "overflow-hidden"
+            className={`w-full h-full relative p-4 overflow-auto custom-scrollbar flex justify-center ${
+              zoomScale > 1 ? "items-start" : "items-center"
             }`}
             onClick={(e) => e.stopPropagation()}
           >
@@ -384,15 +382,18 @@ export default function TextWorkspace() {
               onWheel={(e) => {
                 e.preventDefault();
                 const zoomFactor = e.deltaY < 0 ? 0.25 : -0.25;
-
-                setZoomScale((prevScale) => {
-                  const newScale = prevScale + zoomFactor;
-                  return Math.max(1, Math.min(newScale, 4));
-                });
+                setZoomScale((prevScale) =>
+                  Math.max(1, Math.min(prevScale + zoomFactor, 4)),
+                );
               }}
-              className="max-w-full max-h-[92vh] rounded-xl border border-white/5 shadow-2xl select-none transition-transform duration-150 ease-out origin-center shrink-0"
+              className={`rounded-xl border border-white/5 shadow-2xl select-none transition-all duration-150 ease-out shrink-0 ${
+                zoomScale > 1 ? "my-16" : "my-0"
+              }`}
               style={{
-                transform: `scale(${zoomScale})`,
+                width: zoomScale > 1 ? `${zoomScale * 50}%` : "auto",
+                maxWidth: zoomScale > 1 ? "none" : "100%",
+                maxHeight: zoomScale > 1 ? "none" : "78vh",
+                objectFit: "contain",
                 cursor: zoomScale > 1 ? "zoom-out" : "zoom-in",
               }}
               onClick={() => {
