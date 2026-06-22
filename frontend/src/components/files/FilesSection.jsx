@@ -16,7 +16,7 @@ export default function FilesSection() {
   const [files, setFiles] = useState([]);
   const [uploading, setUploading] = useState(false);
   const [previewFile, setPreviewFile] = useState(null);
-  const [zoomLevel, setZoomLevel] = useState(1);
+  const [zoomScale, setZoomScale] = useState(1);
   const fileInputRef = useRef(null);
 
   useEffect(() => {
@@ -64,17 +64,14 @@ export default function FilesSection() {
     });
 
     try {
-      const res = await API.post("/files/upload", formData, {
+      const res = await API.post("/files/upload?origin=vault", formData, {
         headers: { "Content-Type": "multipart/form-data" },
       });
 
       setFiles((prevFiles) => [...res.data, ...prevFiles]);
       setUploading(false);
     } catch (err) {
-      console.error(
-        "❌ FILE UPLOAD PIPELINE ERROR:",
-        err.response?.data || err.message,
-      );
+      console.error("❌ FILE UPLOAD ERROR:", err.message);
       setUploading(false);
     }
   };
@@ -85,10 +82,7 @@ export default function FilesSection() {
       await API.delete(`/files/${id}`);
       setFiles(files.filter((f) => f._id !== id));
       if (previewFile?._id === id) {
-        const url = new URL(window.location.href);
-        url.searchParams.delete("preview");
-        window.history.replaceState({}, "", url);
-        setPreviewFile(null);
+        handleClosePreview();
       }
     } catch (err) {
       console.error(err);
@@ -97,7 +91,6 @@ export default function FilesSection() {
 
   const handleDownload = async (e, fileId, fileName) => {
     e.stopPropagation();
-
     try {
       const response = await API.get(`/files/download/${fileId}`, {
         responseType: "blob",
@@ -112,49 +105,40 @@ export default function FilesSection() {
       document.body.removeChild(link);
       window.URL.revokeObjectURL(blobUrl);
     } catch (err) {
-      console.error(
-        "❌ Production blob download failed, trying direct stream fallback...",
-        err,
-      );
-
       try {
         const token = localStorage.getItem("mvault_token");
         const baseUrl = API.defaults.baseURL || "http://localhost:5000/api";
-
         const fallbackUrl = `${baseUrl}/files/download/${fileId}?token=${token}`;
         window.open(fallbackUrl, "_self");
       } catch (fallbackErr) {
-        alert("Unable to process download stream on production server.");
+        alert("Unable to process download stream.");
       }
     }
   };
 
   const handleOpenPreview = (file) => {
     const url = new URL(window.location.href);
-    const isAlreadyOpen = url.searchParams.get("preview") === file._id;
-
     url.searchParams.set("preview", file._id);
-
-    if (isAlreadyOpen) {
-      window.history.replaceState({}, "", url);
-    } else {
-      window.history.pushState({}, "", url);
-    }
+    window.history.pushState({}, "", url);
 
     setPreviewFile(file);
-    setZoomLevel(1);
+    setZoomScale(1);
   };
 
   const handleClosePreview = () => {
     const url = new URL(window.location.href);
+    url.searchParams.delete("preview");
+    window.history.replaceState({}, "", url);
+    setPreviewFile(null);
+    setZoomScale(1);
+  };
 
-    if (url.searchParams.has("preview")) {
-      window.history.back();
-    } else {
-      url.searchParams.delete("preview");
-      window.history.replaceState({}, "", url);
-      setPreviewFile(null);
-    }
+  const isPdfFile = (file) => {
+    if (!file) return false;
+    return (
+      file.name?.toLowerCase().endsWith(".pdf") ||
+      file.fileUrl?.toLowerCase().includes(".pdf")
+    );
   };
 
   return (
@@ -183,7 +167,7 @@ export default function FilesSection() {
         {files.map((f) => (
           <div
             key={f._id}
-            onClick={() => handleOpenPreview(f)} // ⚡ FIXED
+            onClick={() => handleOpenPreview(f)}
             className="p-6 bg-bg-card/40 border border-white/[0.03] rounded-2xl flex items-center justify-between group hover:bg-bg-card transition-all duration-300 min-h-[95px] cursor-pointer hover:border-accent-primary/20"
           >
             <div className="flex items-center gap-4 min-w-0">
@@ -201,103 +185,99 @@ export default function FilesSection() {
                   {f.name}
                 </p>
                 <p className="text-xs text-text-muted/50">
-                  {(f.size / 1024 / 1024).toFixed(2)} MB
+                  {f.size ? (f.size / 1024 / 1024).toFixed(2) : "0.00"} MB
                 </p>
               </div>
             </div>
-
-            <div className="flex items-center gap-1.5 opacity-100 md:opacity-0 group-hover:opacity-100 transition-all">
-              <button
-                onClick={(e) => handleDelete(f._id, e)}
-                className="p-2 text-text-muted hover:text-red-400 rounded-lg cursor-pointer"
-              >
-                <Trash2 className="w-4 h-4" />
-              </button>
-            </div>
+            <button
+              onClick={(e) => handleDelete(f._id, e)}
+              className="p-2 text-text-muted hover:text-red-400 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
           </div>
         ))}
       </div>
 
       {previewFile && (
-        <div className="fixed inset-0 bg-black/90 backdrop-blur-md z-50 flex flex-col items-center justify-center p-4 select-none">
-          <div className="absolute top-4 inset-x-4 flex justify-between items-center z-10">
-            <span className="text-xs font-mono text-text-muted bg-bg-card/60 px-3 py-1.5 border border-white/5 rounded-xl truncate max-w-[50%]">
+        <div
+          onClick={() => {
+            if (previewFile.fileType === "photos") handleClosePreview();
+          }}
+          className="fixed inset-0 bg-black/95 backdrop-blur-md z-50 flex flex-col items-center justify-center p-4 animate-fadeIn"
+        >
+          <div className="absolute top-4 inset-x-4 flex justify-between items-center z-50 pointer-events-none">
+            <span className="text-xs font-mono text-text-muted bg-bg-card/70 px-3 py-1.5 border border-white/5 rounded-xl truncate max-w-[40%] pointer-events-auto">
               {previewFile.name}
             </span>
-            <div className="flex items-center gap-3">
+
+            <div className="flex items-center gap-3 pointer-events-auto">
               <button
                 onClick={(e) =>
                   handleDownload(e, previewFile._id, previewFile.name)
                 }
-                className="p-2.5 bg-white/5 text-white rounded-xl text-xs flex items-center gap-1.5 hover:bg-white/10 cursor-pointer"
+                className="p-2.5 bg-white/5 text-white rounded-xl text-xs flex items-center gap-1.5 hover:bg-white/10 cursor-pointer border border-white/5"
               >
                 <Download className="w-3.5 h-3.5" /> Save
               </button>
               <button
                 onClick={handleClosePreview}
-                className="p-2.5 bg-white/5 text-text-muted hover:text-white rounded-xl cursor-pointer"
+                className="p-2.5 bg-white/5 text-text-muted hover:text-white rounded-xl cursor-pointer border border-white/5"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
           </div>
 
-          <div className="w-full max-w-4xl max-h-[75vh] flex items-center justify-center overflow-auto p-4 custom-scrollbar">
+          <div
+            className={`w-full max-w-7xl h-[78vh] flex items-center justify-center rounded-3xl relative p-2 ${
+              zoomScale > 1
+                ? "overflow-auto custom-scrollbar"
+                : "overflow-hidden"
+            }`}
+            onClick={(e) => e.stopPropagation()}
+          >
             {previewFile.fileType === "photos" && (
               <img
                 src={previewFile.fileUrl}
                 alt={previewFile.name}
-                style={{ transform: `scale(${zoomLevel})` }}
-                className="max-w-full max-h-[65vh] object-contain rounded-xl shadow-2xl transition-transform duration-200 ease-out origin-center"
+                onWheel={(e) => {
+                  e.preventDefault();
+                  const factor = e.deltaY < 0 ? 0.25 : -0.25;
+                  setZoomScale((prev) =>
+                    Math.max(1, Math.min(prev + factor, 4)),
+                  );
+                }}
+                className="max-w-full max-h-[72vh] object-contain rounded-xl shadow-2xl select-none transition-transform duration-150 ease-out origin-center shrink-0"
+                style={{
+                  transform: `scale(${zoomScale})`,
+                  cursor: zoomScale > 1 ? "zoom-out" : "zoom-in",
+                }}
+                onClick={() => {
+                  if (zoomScale > 1) setZoomScale(1);
+                  else setZoomScale(2);
+                }}
               />
             )}
+
             {previewFile.fileType === "videos" && (
               <video
                 src={previewFile.fileUrl}
                 controls
                 autoPlay
-                className="max-w-full max-h-[65vh] rounded-xl shadow-2xl"
+                className="max-w-full max-h-[72vh] rounded-xl shadow-2xl"
               />
             )}
-            {previewFile.fileType === "document" && (
+
+            {(previewFile.fileType === "document" ||
+              isPdfFile(previewFile)) && (
               <iframe
-                src={previewFile.fileUrl}
+                src={`https://docs.google.com/viewer?url=${encodeURIComponent(previewFile.fileUrl)}&embedded=true`}
                 title={previewFile.name}
-                className="w-[90vw] md:w-[75vw] h-[78vh] bg-white rounded-xl shadow-2xl border-none"
+                className="w-[92vw] md:w-[80vw] h-[74vh] bg-[#1E222B] rounded-2xl shadow-2xl border border-white/5 relative z-10"
               />
             )}
           </div>
-
-          {previewFile.fileType === "photos" && (
-            <div className="absolute bottom-6 flex items-center gap-4 bg-bg-card/80 px-5 py-2.5 rounded-2xl border border-white/5 backdrop-blur-xl">
-              <button
-                onClick={() =>
-                  setZoomLevel((prev) => Math.max(0.5, prev - 0.25))
-                }
-                className="p-1 text-text-muted hover:text-white cursor-pointer"
-              >
-                <ZoomOut className="w-4 h-4" />
-              </button>
-              <input
-                type="range"
-                min="0.5"
-                max="3"
-                step="0.25"
-                value={zoomLevel}
-                onChange={(e) => setZoomLevel(parseFloat(e.target.value))}
-                className="w-24 accent-accent-primary bg-bg-base h-1 rounded-full cursor-pointer appearance-none"
-              />
-              <button
-                onClick={() => setZoomLevel((prev) => Math.min(3, prev + 0.25))}
-                className="p-1 text-text-muted hover:text-white cursor-pointer"
-              >
-                <ZoomIn className="w-4 h-4" />
-              </button>
-              <span className="text-[10px] font-mono text-text-muted w-10 text-right">
-                {(zoomLevel * 100).toFixed(0)}%
-              </span>
-            </div>
-          )}
         </div>
       )}
     </div>

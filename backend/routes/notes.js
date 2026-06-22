@@ -1,10 +1,16 @@
 import express from "express";
+import { v2 as cloudinary } from "cloudinary";
 import WorkspaceBlock from "../models/WorkspaceBlock.js";
 import { authShield } from "../middleware/authShield.js";
 
 const router = express.Router();
 
-// 1. FETCH ALL BLOCKS
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
+
 router.get("/", authShield, async (req, res) => {
   try {
     const blocks = await WorkspaceBlock.find({ user: req.userId }).sort({
@@ -16,13 +22,12 @@ router.get("/", authShield, async (req, res) => {
   }
 });
 
-// 2. CREATE NEW BLANK BLOCK
 router.post("/", authShield, async (req, res) => {
   try {
     const newBlock = new WorkspaceBlock({
       title: "Untitled Block",
       content: "",
-      user: req.userId, // Injected securely via the authShield middleware
+      user: req.userId,
     });
     const savedBlock = await newBlock.save();
     res.status(201).json(savedBlock);
@@ -31,30 +36,76 @@ router.post("/", authShield, async (req, res) => {
   }
 });
 
-// 3. AUTO-SAVE HANDLER (Uses the updated standard syntax)
 router.put("/:id", authShield, async (req, res) => {
   try {
     const { title, content } = req.body;
-    const updatedBlock = await WorkspaceBlock.findOneAndUpdate(
-      { _id: req.params.id, user: req.userId },
-      { title, content },
-      { returnDocument: "after" }, // Replaces deprecated new:true format cleanly
+
+    const existingBlock = await WorkspaceBlock.findOne({
+      _id: req.params.id,
+      user: req.userId,
+    });
+    if (!existingBlock)
+      return res.status(404).json({ message: "Workspace block not found" });
+
+    const extractPublicIds = (text) => {
+      if (!text) return [];
+      const regex = /\/upload\/(?:v\d+\/)?([^\s\)]+)/g;
+      const ids = [];
+      let match;
+      while ((match = regex.exec(text)) !== null) {
+        const cleanId = match[1].split(".")[0];
+        ids.push(cleanId);
+      }
+      return ids;
+    };
+
+    const oldIds = extractPublicIds(existingBlock.content);
+    const newIds = extractPublicIds(content);
+    const orphanedIds = oldIds.filter(
+      (id) => !newIds.includes(id) && id.includes("mvault_vault_storage"),
     );
-    if (!updatedBlock)
-      return res.status(404).json({ message: "Block not found" });
-    res.status(200).json(updatedBlock);
+
+    if (orphanedIds.length > 0) {
+      console.log(`🧹 Purging orphaned assets from Cloudinary:`, orphanedIds);
+
+      const purgePromises = orphanedIds.map((publicId) =>
+        cloudinary.uploader
+          .destroy(publicId)
+          .catch((err) =>
+            console.error(
+              `⚠️ Failed to destroy asset ${publicId}:`,
+              err.message,
+            ),
+          ),
+      );
+
+      await Promise.all(purgePromises);
+    }
+
+    existingBlock.title = title;
+    existingBlock.content = content;
+    await existingBlock.save();
+
+    res.status(200).json(existingBlock);
   } catch (err) {
+    console.error("❌ Auto-save purge pipeline failed:", err.message);
     res.status(500).json({ message: err.message });
   }
 });
 
-// 4. DELETE BLOCK
 router.delete("/:id", authShield, async (req, res) => {
   try {
-    await WorkspaceBlock.findOneAndDelete({
+    const deletedBlock = await WorkspaceBlock.findOneAndDelete({
       _id: req.params.id,
       user: req.userId,
     });
+
+    if (!deletedBlock) {
+      return res
+        .status(404)
+        .json({ message: "Block not found or unauthorized." });
+    }
+
     res.status(200).json({ message: "Deleted block successfully" });
   } catch (err) {
     res.status(500).json({ message: err.message });

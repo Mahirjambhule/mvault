@@ -1,6 +1,29 @@
 import React, { useState } from "react";
-import { Terminal, Lock, Mail, User, ArrowRight } from "lucide-react";
+import { Lock, Mail, User, ArrowRight } from "lucide-react";
 import API from "../../api";
+
+const AuthLogo = () => (
+  <div className="relative w-12 h-12 flex items-center justify-center mx-auto mb-4 group">
+    <div className="absolute inset-0 bg-cyan-500/10 rounded-xl blur-[6px] group-hover:bg-cyan-500/20 transition-all duration-300" />
+
+    <div className="w-12 h-12 rounded-xl bg-[#1A1F26] border border-white/[0.08] flex items-center justify-center relative overflow-hidden shadow-2xl">
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="#22D3EE"
+        strokeWidth="2.2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        className="w-5 h-5 relative z-10 drop-shadow-[0_0_6px_rgba(34,211,238,0.5)]"
+      >
+        <path d="M12 5L3 9.5l9 4.5 9-4.5-9-4.5z" />
+        <path d="M3 14.5l9 4.5 9-4.5" />
+        <path d="M3 19.5l9 4.5 9-4.5" />
+      </svg>
+      <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:4px_4px]" />
+    </div>
+  </div>
+);
 
 export default function AuthGateway({ onAuthSuccess }) {
   const [isLogin, setIsLogin] = useState(true);
@@ -34,13 +57,10 @@ export default function AuthGateway({ onAuthSuccess }) {
   return (
     <div className="min-h-screen w-screen bg-bg-base flex items-center justify-center p-4">
       <div className="w-full max-w-md bg-bg-card border border-white/[0.03] rounded-3xl p-8 shadow-[0_8px_40px_rgba(0,0,0,0.3)] space-y-6">
-        {/* Header */}
         <div className="text-center space-y-2">
-          <div className="w-10 h-10 rounded-xl bg-accent-primary/10 border border-accent-primary/20 flex items-center justify-center text-accent-primary mx-auto">
-            <Terminal className="w-5 h-5" />
-          </div>
-          <h2 className="text-lg font-semibold tracking-wide text-text-bright uppercase">
-            {isLogin ? "Unlock MVault" : "Initialize Node Account"}
+          <AuthLogo />
+          <h2 className="text-lg font-black tracking-[0.12em] text-text-bright uppercase bg-gradient-to-r from-text-bright via-text-bright to-white/60 bg-clip-text text-transparent">
+            {isLogin ? "Unlock MVault" : "Initialize Node"}
           </h2>
           <p className="text-xs text-text-muted">
             Enter credentials to authenticate secure storage link.
@@ -53,7 +73,6 @@ export default function AuthGateway({ onAuthSuccess }) {
           </div>
         )}
 
-        {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-4">
           {!isLogin && (
             <div className="relative">
@@ -113,11 +132,10 @@ export default function AuthGateway({ onAuthSuccess }) {
           </button>
         </form>
 
-        {/* Switcher Footer Toggle */}
         <div className="text-center pt-2">
           <button
             onClick={() => setIsLogin(!isLogin)}
-            className="text-[11px] text-text-muted hover:text-accent-primary transition-colors font-medium cursor-pointer"
+            className="text-[11px] text-text-muted hover:text-cyan-400 transition-colors font-medium cursor-pointer"
           >
             {isLogin
               ? "Need a pristine container? Create account"

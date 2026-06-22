@@ -60,16 +60,21 @@ router.post("/upload", authShield, upload.array("files"), async (req, res) => {
             if (file.mimetype.startsWith("image/")) calculatedType = "photos";
             if (file.mimetype.startsWith("video/")) calculatedType = "videos";
 
-            const newFile = new File({
+            const filePayload = {
               name: file.originalname,
               fileUrl: result.secure_url,
               fileType: calculatedType,
               size: file.size,
               user: req.userId,
-            });
+            };
 
-            await newFile.save();
-            resolve(newFile);
+            if (req.query.origin !== "workspace") {
+              const newFile = new File(filePayload);
+              await newFile.save();
+              resolve(newFile);
+            } else {
+              resolve(filePayload);
+            }
           },
         );
         stream.end(file.buffer);
@@ -104,13 +109,32 @@ router.delete("/:id", authShield, async (req, res) => {
     try {
       const matches = file.fileUrl.match(/\/upload\/(?:v\d+\/)?([^\.]+)/);
       if (matches) {
-        await cloudinary.uploader.destroy(matches[1]);
+        const publicId = matches[1];
+
+        let resourceType = "image";
+        if (file.fileType === "videos") {
+          resourceType = "video";
+        } else if (
+          file.fileType === "document" ||
+          file.name?.toLowerCase().endsWith(".pdf")
+        ) {
+          resourceType = "raw";
+        }
+
+        console.log(
+          `🧹 Purging ${resourceType} from Cloudinary. Public ID: ${publicId}`,
+        );
+
+        await cloudinary.uploader.destroy(publicId, {
+          resource_type: resourceType,
+        });
       }
     } catch (cloudErr) {
       console.error("⚠️ Cloudinary asset bypass:", cloudErr.message);
     }
 
     await File.deleteOne({ _id: req.params.id, user: req.userId });
+
     res
       .status(200)
       .json({ message: "Asset purged completely from cloud and database." });
