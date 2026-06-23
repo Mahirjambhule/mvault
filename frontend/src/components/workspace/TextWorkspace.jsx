@@ -251,7 +251,7 @@ export default function TextWorkspace() {
             </div>
             <button
               onClick={(e) => handleDelete(b._id, e)}
-              className="p-2 text-text-muted hover:text-red-400 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
+              className="p-2 text-text-muted hover:text-red-400 rounded-lg transition-opacity md:opacity-0 group-hover:opacity-100 opacity-100 cursor-pointer shrink-0"
             >
               <Trash2 className="w-4 h-4" />
             </button>
@@ -321,7 +321,7 @@ export default function TextWorkspace() {
                       setContent(e.target.value);
                       triggerAutoSave(title, e.target.value);
                     }}
-                    placeholder="// Paste screenshots directly here! Click 'Live Preview' above to interact with your images and links."
+                    placeholder="// Drop text or screenshots here... Use 'Live Preview' to view links and images."
                     className="w-full h-full bg-transparent text-sm font-mono text-text-bright/80 leading-relaxed outline-none resize-none border-none focus:ring-0 custom-scrollbar pr-5 text-justify"
                   />
                 </div>

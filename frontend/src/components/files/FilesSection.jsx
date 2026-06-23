@@ -191,7 +191,7 @@ export default function FilesSection() {
             </div>
             <button
               onClick={(e) => handleDelete(f._id, e)}
-              className="p-2 text-text-muted hover:text-red-400 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
+              className="p-2 text-text-muted hover:text-red-400 rounded-lg transition-opacity md:opacity-0 group-hover:opacity-100 opacity-100 cursor-pointer shrink-0"
             >
               <Trash2 className="w-4 h-4" />
             </button>
@@ -269,6 +269,16 @@ export default function FilesSection() {
                   controls
                   autoPlay
                   className="max-w-full max-h-[72vh] rounded-xl shadow-2xl"
+                />
+              </div>
+            )}
+            {(previewFile.fileType === "document" ||
+              isPdfFile(previewFile)) && (
+              <div className="w-full h-full flex items-center justify-center relative z-10">
+                <iframe
+                  src={`https://docs.google.com/viewer?url=${encodeURIComponent(previewFile.fileUrl)}&embedded=true`}
+                  title={previewFile.name}
+                  className="w-[92vw] md:w-[80vw] h-[74vh] bg-[#1E222B] rounded-2xl shadow-2xl border border-white/5"
                 />
               </div>
             )}
